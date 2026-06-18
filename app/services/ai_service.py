@@ -25,7 +25,7 @@ You are a Senior QA Automation Architect.
 Page Name:
 {page_name}
 
-Elements:
+Elements (with full metadata — use "tag", "input_type", "placeholder" to generate smarter tests):
 {json.dumps(elements, indent=2)}
 
 Existing Test Cases:
@@ -35,14 +35,21 @@ Generate ONLY additional test cases.
 
 Rules:
 1. Do not duplicate existing tests.
-2. Focus on:
+2. Use element metadata intelligently:
+   - For input_type="email": generate email format validation tests
+   - For input_type="password": generate password masking and strength tests
+   - For input_type="number": generate numeric boundary tests
+   - For tag="a" (links): generate navigation and URL tests
+   - For tag="select" (dropdowns): generate option selection tests
+   - For required="true": generate mandatory field validation tests
+3. Focus on:
    - Security
    - Accessibility
    - Boundary Testing
    - Edge Cases
    - Workflow Validation
-3. Return JSON ONLY.
-4. Maximum 10 test cases.
+4. Return JSON ONLY.
+5. Maximum 10 test cases.
 
 Format:
 

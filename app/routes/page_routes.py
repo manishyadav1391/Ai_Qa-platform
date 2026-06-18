@@ -71,10 +71,17 @@ def get_page_detail(
         "elements": [
             {
                 "id": e.id,
+                "tag_name": e.tag_name,
                 "element_type": e.element_type,
                 "name": e.name,
+                "element_id": e.element_id,
                 "locator": e.locator,
                 "text": e.text,
+                "placeholder": e.placeholder,
+                "input_type": e.input_type,
+                "href": e.href,
+                "visible": e.visible,
+                "required": e.required,
             }
             for e in elements
         ],

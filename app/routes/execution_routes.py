@@ -53,7 +53,7 @@ def run_page_test(
 
     status = (
         "PASS"
-        if result["returncode"] == 0
+        if result.get("returncode") == 0
         else "FAIL"
     )
 

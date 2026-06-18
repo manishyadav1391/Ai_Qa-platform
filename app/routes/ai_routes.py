@@ -50,10 +50,22 @@ def generate_ai_tests(
     element_data = []
 
     for e in elements:
+        # Skip hidden and non-testable elements
+        if e.visible == "false":
+            continue
+        if e.input_type in ("hidden", "submit", "reset", "image"):
+            continue
+
         element_data.append({
+            "tag": e.tag_name or e.element_type,
             "type": e.element_type,
             "name": e.name,
-            "text": e.text
+            "id": e.element_id or "",
+            "input_type": e.input_type or "",
+            "text": e.text,
+            "placeholder": e.placeholder or "",
+            "href": e.href or "",
+            "required": e.required or "false",
         })
 
     existing_titles = [

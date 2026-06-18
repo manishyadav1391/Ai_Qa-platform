@@ -110,17 +110,23 @@ def generate_ai_script(
         .all()
     )
 
-    # Convert DB elements to clean payloads (no raw SQLAlchemy objects sent to AI)
+    # Convert DB elements to clean payloads — exclude hidden elements
     elements_payload = [
         {
+            "tag": e.tag_name or e.element_type,
             "type": e.element_type,
             "name": e.name,
+            "id": e.element_id or "",
+            "input_type": e.input_type or "",
             "locator": e.locator,
             "text": e.text,
-            "placeholder": e.placeholder,
-            "required": e.required
+            "placeholder": e.placeholder or "",
+            "href": e.href or "",
+            "required": e.required or "false",
+            "visible": e.visible or "true",
         }
         for e in elements
+        if e.visible != "false"  # Don't send hidden elements to AI
     ]
 
     # Get test cases

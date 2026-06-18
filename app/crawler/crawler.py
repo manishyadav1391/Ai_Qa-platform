@@ -1,30 +1,52 @@
-from playwright.sync_api import sync_playwright
+"""
+Single page scanner — reuses an existing browser when provided,
+falls back to launching its own if not.
+"""
+from playwright.sync_api import sync_playwright, Browser
 from app.crawler.page_scanner import extract_elements, extract_features, extract_links
 
 
-def scan_page(url: str):
+def scan_page(url: str, browser: Browser = None, timeout: int = 30000):
+    """
+    Scan a single page and return its metadata.
 
-    with sync_playwright() as p:
+    Args:
+        url: The URL to scan.
+        browser: An existing Playwright browser instance to reuse.
+                 If None, a new browser is launched and closed after.
+        timeout: Page navigation timeout in milliseconds (default 30s).
+    """
+    owns_browser = browser is None
 
-        browser = p.chromium.launch(
-            headless=False
-        )
+    if owns_browser:
+        pw = sync_playwright().start()
+        browser = pw.chromium.launch(headless=True)
 
+    try:
         page = browser.new_page()
+        page.set_default_timeout(timeout)
+        page.set_default_navigation_timeout(timeout)
 
         response = page.goto(
             url,
-            wait_until="networkidle"
+            wait_until="domcontentloaded",
+            timeout=timeout
         )
 
-        title = page.title()
+        # Wait a short time for JS to render, but don't wait for networkidle
+        # which can hang on pages with persistent connections
+        try:
+            page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            pass  # Acceptable — page loaded enough
 
+        title = page.title()
         current_url = page.url
         elements = extract_elements(page)
         features = extract_features(page)
         links = extract_links(page)
 
-        browser.close()
+        page.close()
 
         return {
             "title": title,
@@ -34,3 +56,8 @@ def scan_page(url: str):
             "features": features,
             "links": links
         }
+
+    finally:
+        if owns_browser:
+            browser.close()
+            pw.stop()

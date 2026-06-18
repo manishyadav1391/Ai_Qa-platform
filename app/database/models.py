@@ -44,7 +44,16 @@ class CrawlRun(Base):
 
     started_at = Column(DateTime)
 
+    completed_at = Column(DateTime, nullable=True)
+
     status = Column(String)
+
+    # Live progress fields
+    pages_found = Column(Integer, default=0)
+
+    current_url = Column(String, nullable=True)
+
+    max_pages = Column(Integer, nullable=True)
 
     project = relationship(
         "Project",
@@ -131,15 +140,31 @@ class Element(Base):
         ForeignKey("pages.id")
     )
 
+    # Semantic role: input, link, button, checkbox, radio, textarea, dropdown, form, table
     element_type = Column(String)
+
+    # Actual HTML tag: a, button, input, select, textarea, form, table
+    tag_name = Column(String, nullable=True)
 
     name = Column(String)
 
     locator = Column(String)
 
+    # The HTML id attribute — best locator source
+    element_id = Column(String, nullable=True)
+
     text = Column(String)
 
     placeholder = Column(String, nullable=True)
+
+    # The HTML type attribute for inputs: text, email, password, hidden, checkbox, radio, etc.
+    input_type = Column(String, nullable=True)
+
+    # The href attribute for links
+    href = Column(String, nullable=True)
+
+    # Whether the element is visible on screen
+    visible = Column(String, nullable=True, default="true")
 
     required = Column(String, nullable=True)
 
