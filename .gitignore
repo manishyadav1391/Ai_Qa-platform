@@ -1,0 +1,8 @@
+/venv
+/screenshots
+/test_pages
+/generated_scripts
+/execution_results
+/failures
+/logs
+/qa_platform_v3.db
