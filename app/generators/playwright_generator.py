@@ -140,7 +140,8 @@ def _generate_table_test(element, locator: str) -> str:
 def generate_playwright_script(
     page_title,
     page_url,
-    elements
+    elements,
+    project_id=None
 ):
     """
     Generate a Playwright Python test script with specific locators
@@ -148,14 +149,28 @@ def generate_playwright_script(
     """
 
     script = f'''from playwright.sync_api import sync_playwright
+import os
 
 
 def test_{_safe_name(page_title)}():
     """Auto-generated test for: {page_title}"""
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        browser = p.chromium.launch(headless=False)
+'''
+
+    if project_id is not None:
+        script += f'''        session_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "auth_state_{project_id}.json"))
+        if os.path.exists(session_path):
+            context = browser.new_context(storage_state=session_path)
+        else:
+            context = browser.new_context()
+'''
+    else:
+        script += '''        context = browser.new_context()
+'''
+
+    script += f'''        page = context.new_page()
 
         try:
             page.goto("{page_url}", wait_until="networkidle")

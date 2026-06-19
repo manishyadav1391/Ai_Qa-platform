@@ -14,6 +14,7 @@ from app.routes.script_routes import (
 )
 from app.routes.execution_routes import router as execution_router
 from app.routes.page_routes import router as page_router
+from app.routes.auth_routes import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -44,6 +45,7 @@ app.include_router(
 )
 app.include_router(execution_router)
 app.include_router(page_router)
+app.include_router(auth_router)
 
 @app.get("/")
 def home():

@@ -6,12 +6,14 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
-from app.database.models import Project, Page, Element, PageLink, CrawlRun, PageFeature
+from app.database.models import Project, Page, Element, PageLink, CrawlRun, PageFeature, AuthConfig
 
 from app.crawler.crawler import scan_page
 from app.crawler.site_crawler import crawl_site
 
 from app.database.db import SessionLocal
+
+import json
 
 router = APIRouter(
     prefix="/crawl",
@@ -93,6 +95,7 @@ def _save_page_results(db: Session, project_id: int, crawl_run_id: int, results:
 @router.post("/{project_id}")
 def crawl_project(
     project_id: int,
+    url: str = None,
     db: Session = Depends(get_db)
 ):
 
@@ -107,6 +110,12 @@ def crawl_project(
             "error": "Project not found"
         }
 
+    # Resolve target URL
+    target_url = project.url
+    if url:
+        from app.crawler.url_helper import resolve_target_url
+        target_url = resolve_target_url(project.url, url)
+
     # Create a versioned CrawlRun
     crawl_run = CrawlRun(
         project_id=project.id,
@@ -119,8 +128,23 @@ def crawl_project(
     db.flush()
 
     try:
+        # Load auth session if available
+        storage_state = None
+        auth_config = (
+            db.query(AuthConfig)
+            .filter(AuthConfig.project_id == project.id)
+            .filter(AuthConfig.status == "active")
+            .first()
+        )
+        if auth_config and auth_config.session_state:
+            try:
+                storage_state = json.loads(auth_config.session_state)
+            except Exception:
+                pass
+
         result = scan_page(
-            project.url
+            target_url,
+            storage_state=storage_state
         )
 
         new_page = Page(
@@ -197,6 +221,7 @@ def _run_recursive_crawl(
     crawl_run_id: int,
     max_pages: int,
     stop_event: threading.Event,
+    storage_state: dict = None,
 ):
     """Background worker for recursive crawling."""
     db = SessionLocal()
@@ -220,6 +245,7 @@ def _run_recursive_crawl(
             page_timeout=30000,
             stop_event=stop_event,
             on_progress=on_progress,
+            storage_state=storage_state,
         )
 
         # Save all crawled pages to DB
@@ -285,13 +311,31 @@ def test_recursive(
                     "crawl_run_id": run_id
                 }
 
+    # Load auth session if available
+    storage_state = None
+    start_url = project.url
+    auth_config = (
+        db.query(AuthConfig)
+        .filter(AuthConfig.project_id == project.id)
+        .filter(AuthConfig.status == "active")
+        .first()
+    )
+    if auth_config:
+        if auth_config.session_state:
+            try:
+                storage_state = json.loads(auth_config.session_state)
+            except Exception:
+                pass
+        if auth_config.landing_url:
+            start_url = auth_config.landing_url
+
     # Create a versioned CrawlRun
     crawl_run = CrawlRun(
         project_id=project.id,
         started_at=datetime.datetime.now(datetime.timezone.utc),
         status="running",
         pages_found=0,
-        current_url=project.url,
+        current_url=start_url,
         max_pages=max_pages
     )
     db.add(crawl_run)
@@ -305,7 +349,8 @@ def test_recursive(
     # Launch background thread
     thread = threading.Thread(
         target=_run_recursive_crawl,
-        args=(project.id, project.url, crawl_run.id, max_pages, stop_event),
+        args=(project.id, start_url, crawl_run.id, max_pages, stop_event),
+        kwargs={"storage_state": storage_state},
         daemon=True
     )
     thread.start()

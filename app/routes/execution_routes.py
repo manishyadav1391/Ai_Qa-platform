@@ -25,6 +25,16 @@ def run_page_test(
     """
     Execute latest script for a page
     """
+    from app.database.models import Page, AuthConfig
+    import json
+    import os
+
+    page = db.query(Page).filter(Page.id == page_id).first()
+    if not page:
+        return {
+            "success": False,
+            "message": "Page not found"
+        }
 
     script = (
         db.query(AutomationScript)
@@ -42,6 +52,23 @@ def run_page_test(
             "success": False,
             "message": "No script found for this page"
         }
+
+    # Write session state to file before executing if active session exists
+    auth_config = (
+        db.query(AuthConfig)
+        .filter(AuthConfig.project_id == page.project_id)
+        .filter(AuthConfig.status == "active")
+        .first()
+    )
+    if auth_config and auth_config.session_state:
+        os.makedirs("generated_scripts", exist_ok=True)
+        session_path = os.path.join("generated_scripts", f"auth_state_{page.project_id}.json")
+        try:
+            state_data = json.loads(auth_config.session_state)
+            with open(session_path, "w", encoding="utf-8") as f:
+                json.dump(state_data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving auth state for execution: {e}")
 
     started_at = datetime.utcnow()
 

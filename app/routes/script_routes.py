@@ -42,10 +42,30 @@ def generate_script(
         .all()
     )
 
+    # Write session state to file if active session exists
+    from app.database.models import AuthConfig
+    import json
+    auth_config = (
+        db.query(AuthConfig)
+        .filter(AuthConfig.project_id == page.project_id)
+        .filter(AuthConfig.status == "active")
+        .first()
+    )
+    if auth_config and auth_config.session_state:
+        os.makedirs("generated_scripts", exist_ok=True)
+        session_path = os.path.join("generated_scripts", f"auth_state_{page.project_id}.json")
+        try:
+            state_data = json.loads(auth_config.session_state)
+            with open(session_path, "w", encoding="utf-8") as f:
+                json.dump(state_data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving auth state: {e}")
+
     script_content = generate_playwright_script(
         page.title,
         page.url,
-        elements
+        elements,
+        project_id=page.project_id
     )
 
     # Version logic
@@ -150,12 +170,32 @@ def generate_ai_script(
     # Generate via AI
     from app.services.ai_playwright_service import generate_playwright_script_via_ai
     
+    # Write session state to file if active session exists
+    from app.database.models import AuthConfig
+    import json
+    auth_config = (
+        db.query(AuthConfig)
+        .filter(AuthConfig.project_id == page.project_id)
+        .filter(AuthConfig.status == "active")
+        .first()
+    )
+    if auth_config and auth_config.session_state:
+        os.makedirs("generated_scripts", exist_ok=True)
+        session_path = os.path.join("generated_scripts", f"auth_state_{page.project_id}.json")
+        try:
+            state_data = json.loads(auth_config.session_state)
+            with open(session_path, "w", encoding="utf-8") as f:
+                json.dump(state_data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving auth state: {e}")
+
     try:
         script_content = generate_playwright_script_via_ai(
             page.title,
             page.url,
             elements_payload,
-            testcases_payload
+            testcases_payload,
+            project_id=page.project_id
         )
     except Exception as e:
         return {

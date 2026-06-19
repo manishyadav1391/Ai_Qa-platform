@@ -118,6 +118,7 @@ def crawl_site(
     page_timeout: int = 30000,
     stop_event: threading.Event = None,
     on_progress=None,
+    storage_state: dict = None,
 ):
     """
     Crawl a website recursively with safeguards.
@@ -130,6 +131,8 @@ def crawl_site(
         stop_event: A threading.Event — if set, crawler stops gracefully.
         on_progress: Callback function(pages_crawled, current_url) for live updates.
 
+        storage_state: Optional Playwright storage state dict for authenticated crawling.
+
     Returns:
         List of page result dicts.
     """
@@ -137,9 +140,13 @@ def crawl_site(
     visited = set()
     pages = []
 
-    # Launch a single browser for all pages
+    # Launch a single browser and context for all pages
     pw = sync_playwright().start()
     browser = pw.chromium.launch(headless=True)
+    if storage_state:
+        context = browser.new_context(storage_state=storage_state)
+    else:
+        context = browser.new_context()
 
     try:
         def crawl(url, depth, parent_url=None):
@@ -172,7 +179,7 @@ def crawl_site(
             try:
                 result = scan_page(
                     url,
-                    browser=browser,
+                    context=context,
                     timeout=page_timeout
                 )
                 result["depth"] = depth
@@ -191,7 +198,7 @@ def crawl_site(
                     if len(pages) >= max_pages:
                         return
 
-                    full_url = urljoin(url, link)
+                    full_url = urljoin(result["url"], link)
 
                     # Only follow same-domain links
                     if urlparse(full_url).netloc.lower() != root_domain:
@@ -209,7 +216,17 @@ def crawl_site(
         crawl(start_url, 0, parent_url=None)
 
     finally:
-        browser.close()
-        pw.stop()
+        try:
+            context.close()
+        except Exception:
+            pass
+        try:
+            browser.close()
+        except Exception:
+            pass
+        try:
+            pw.stop()
+        except Exception:
+            pass
 
     return pages

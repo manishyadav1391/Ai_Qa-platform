@@ -31,6 +31,12 @@ class Project(Base):
         back_populates="project"
     )
 
+    auth_config = relationship(
+        "AuthConfig",
+        back_populates="project",
+        uselist=False
+    )
+
 
 class CrawlRun(Base):
     __tablename__ = "crawl_runs"
@@ -290,3 +296,45 @@ class TestExecution(Base):
     screenshot_path = Column(String)
 
     execution_log = Column(Text)
+
+
+class AuthConfig(Base):
+    """
+    Stores captured browser session state for authenticated crawling.
+
+    Approach: User logs in manually via a visible browser,
+    we capture cookies + localStorage via Playwright's storage_state(),
+    and inject it into future crawl sessions.
+
+    No passwords are stored — only session artifacts.
+    """
+    __tablename__ = "auth_configs"
+
+    id = Column(Integer, primary_key=True)
+
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id"),
+        unique=True
+    )
+
+    # "active" | "expired" | "none"
+    status = Column(String, default="none")
+
+    # Serialized JSON from context.storage_state()
+    # Contains cookies and localStorage entries
+    session_state = Column(Text, nullable=True)
+
+    # When the session was captured
+    captured_at = Column(DateTime, nullable=True)
+
+    # The URL where the user logged in (for reference)
+    login_url = Column(String, nullable=True)
+
+    # The URL where the user landed/was when captured
+    landing_url = Column(String, nullable=True)
+
+    project = relationship(
+        "Project",
+        back_populates="auth_config"
+    )

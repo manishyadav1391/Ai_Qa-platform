@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright, Browser
 from app.crawler.page_scanner import extract_elements, extract_features, extract_links
 
 
-def scan_page(url: str, browser: Browser = None, timeout: int = 30000):
+def scan_page(url: str, browser: Browser = None, storage_state: dict = None, timeout: int = 30000, context = None):
     """
     Scan a single page and return its metadata.
 
@@ -14,16 +14,29 @@ def scan_page(url: str, browser: Browser = None, timeout: int = 30000):
         url: The URL to scan.
         browser: An existing Playwright browser instance to reuse.
                  If None, a new browser is launched and closed after.
+        storage_state: Optional Playwright storage state dict (cookies + localStorage).
+                       When provided, the browser context is created with this state,
+                       enabling authenticated page access.
         timeout: Page navigation timeout in milliseconds (default 30s).
+        context: An existing Playwright BrowserContext to reuse. If provided,
+                 browser and storage_state are ignored and context is reused.
     """
-    owns_browser = browser is None
+    owns_browser = browser is None and context is None
+    owns_context = context is None
 
     if owns_browser:
         pw = sync_playwright().start()
         browser = pw.chromium.launch(headless=True)
 
     try:
-        page = browser.new_page()
+        if owns_context:
+            # Create context with or without auth session
+            if storage_state:
+                context = browser.new_context(storage_state=storage_state)
+            else:
+                context = browser.new_context()
+
+        page = context.new_page()
         page.set_default_timeout(timeout)
         page.set_default_navigation_timeout(timeout)
 
@@ -47,6 +60,8 @@ def scan_page(url: str, browser: Browser = None, timeout: int = 30000):
         links = extract_links(page)
 
         page.close()
+        if owns_context:
+            context.close()
 
         return {
             "title": title,
