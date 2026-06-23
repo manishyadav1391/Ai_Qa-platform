@@ -104,6 +104,9 @@ class Page(Base):
         nullable=True
     )
 
+    # Full HTML content DOM snapshot
+    html_content = Column(Text, nullable=True)
+
     project = relationship(
         "Project",
         back_populates="pages"
@@ -173,6 +176,14 @@ class Element(Base):
     visible = Column(String, nullable=True, default="true")
 
     required = Column(String, nullable=True)
+
+    # Rich contextual fields for semantic AI scripting
+    xpath = Column(String, nullable=True)
+    css_selector = Column(String, nullable=True)
+    label = Column(String, nullable=True)
+    nearby_text = Column(Text, nullable=True)
+    parent_section = Column(String, nullable=True)
+    element_index = Column(Integer, nullable=True)
 
     page = relationship(
         "Page",

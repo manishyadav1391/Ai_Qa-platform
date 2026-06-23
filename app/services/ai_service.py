@@ -42,12 +42,26 @@ Rules:
    - For tag="a" (links): generate navigation and URL tests
    - For tag="select" (dropdowns): generate option selection tests
    - For required="true": generate mandatory field validation tests
-3. Focus on:
-   - Security
-   - Accessibility
-   - Boundary Testing
-   - Edge Cases
-   - Workflow Validation
+3. Generate ONLY tests that can be proven from metadata.
+
+Allowed:
+- Navigation tests
+- Presence tests
+- Required field tests
+- Readonly tests
+- Disabled state tests
+- Dropdown selection tests
+- Link destination tests
+
+Forbidden unless explicitly proven:
+- Security tests
+- XSS tests
+- SQL injection tests
+- Character limit tests
+- Validation message tests
+- Performance tests
+- Password policy tests
+- Business workflow tests
 4. Return JSON ONLY.
 5. Maximum 10 test cases.
 

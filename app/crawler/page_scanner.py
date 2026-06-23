@@ -67,185 +67,142 @@ def extract_elements(page: Page):
 
     Returns a list of dicts with:
         tag, type, name, element_id, input_type, placeholder,
-        text, href, required, visible, locator
+        text, href, required, visible, locator, xpath, css_selector,
+        label, parent_section, nearby_text, element_index
     """
-    elements = []
+    js_code = r"""
+    () => {
+        const interactiveTags = ['input', 'button', 'select', 'textarea', 'a', 'form', 'table'];
+        const elements = [];
+        
+        const getXPath = (el) => {
+            if (el.id) return `//*[@id="${el.id}"]`;
+            if (el === document.body) return '/html/body';
+            let ix = 0;
+            const siblings = el.parentNode ? el.parentNode.childNodes : [];
+            for (let i = 0; i < siblings.length; i++) {
+                const sibling = siblings[i];
+                if (sibling === el) {
+                    return getXPath(el.parentNode) + '/' + el.tagName.toLowerCase() + '[' + (ix + 1) + ']';
+                }
+                if (sibling.nodeType === 1 && sibling.tagName === el.tagName) {
+                    ix++;
+                }
+            }
+            return '';
+        };
 
-    # ─── Inputs ──────────────────────────────────────────────────────
-    inputs = page.locator("input").all()
+        const getCSSSelector = (el) => {
+            if (el.id) return `#${el.id}`;
+            let path = [];
+            while (el && el.nodeType === 1) {
+                let selector = el.tagName.toLowerCase();
+                if (el.className) {
+                    // Filter out dynamic/interactive class states
+                    const classes = Array.from(el.classList)
+                        .filter(c => !c.includes('active') && !c.includes('focus') && !c.includes('hover') && !c.includes('ng-'))
+                        .join('.');
+                    if (classes) selector += '.' + classes;
+                }
+                let nth = 1;
+                let sibling = el.previousElementSibling;
+                while (sibling) {
+                    if (sibling.tagName === el.tagName) nth++;
+                    sibling = sibling.previousElementSibling;
+                }
+                if (nth > 1) selector += `:nth-of-type(${nth})`;
+                path.unshift(selector);
+                el = el.parentNode;
+            }
+            return path.join(' > ');
+        };
 
-    for item in inputs:
-        input_type = item.get_attribute("type") or "text"
-        element_id = item.get_attribute("id") or ""
-        name = item.get_attribute("name") or ""
-        placeholder = item.get_attribute("placeholder") or ""
-        visible = _is_visible(item)
-        required = item.get_attribute("required") is not None
+        const findLabel = (el) => {
+            if (el.id) {
+                const label = document.querySelector(`label[for="${el.id}"]`);
+                if (label) return label.innerText.trim();
+            }
+            let parent = el.parentNode;
+            while (parent) {
+                if (parent.tagName === 'LABEL') return parent.innerText.trim();
+                parent = parent.parentNode;
+            }
+            let prev = el.previousElementSibling;
+            if (prev && prev.tagName === 'LABEL') return prev.innerText.trim();
+            return '';
+        };
 
-        # Hidden inputs are still stored but flagged
-        if input_type == "hidden":
-            visible = False
+        const findParentSection = (el) => {
+            let parent = el.parentNode;
+            while (parent && parent !== document.body) {
+                const tag = parent.tagName;
+                if (['FORM', 'SECTION', 'NAV', 'HEADER', 'FOOTER', 'ARTICLE', 'ASIDE'].includes(tag)) {
+                    const id = parent.id ? `#${parent.id}` : '';
+                    const cls = parent.className ? `.${Array.from(parent.classList).slice(0, 2).join('.')}` : '';
+                    return `${tag.toLowerCase()}${id}${cls}`;
+                }
+                parent = parent.parentNode;
+            }
+            return 'body';
+        };
 
-        elem_type = _classify_element("input", input_type, None)
+        const getNearbyText = (el) => {
+            if (!el.parentNode) return '';
+            let text = el.parentNode.innerText || '';
+            if (text.length > 200) {
+                text = text.substring(0, 200);
+            }
+            return text.replace(/\s+/g, ' ').trim();
+        };
 
-        elements.append({
-            "tag": "input",
-            "type": elem_type,
-            "name": name,
-            "element_id": element_id,
-            "input_type": input_type,
-            "placeholder": placeholder,
-            "text": "",
-            "href": "",
-            "required": "true" if required else "false",
-            "visible": "true" if visible else "false",
-            "locator": _build_locator(element_id, name, "input"),
-        })
-
-    # ─── Buttons ─────────────────────────────────────────────────────
-    buttons = page.locator("button").all()
-
-    for item in buttons:
-        element_id = item.get_attribute("id") or ""
-        name = item.get_attribute("name") or ""
-        btn_type = item.get_attribute("type") or "button"
-        text = ""
-        try:
-            text = item.inner_text().strip()
-        except Exception:
-            pass
-
-        elements.append({
-            "tag": "button",
-            "type": "button",
-            "name": name,
-            "element_id": element_id,
-            "input_type": btn_type,
-            "placeholder": "",
-            "text": text,
-            "href": "",
-            "required": "false",
-            "visible": "true" if _is_visible(item) else "false",
-            "locator": _build_locator(element_id, name, "button"),
-        })
-
-    # ─── Links (<a>) ─────────────────────────────────────────────────
-    anchors = page.locator("a").all()
-
-    for item in anchors:
-        href = item.get_attribute("href") or ""
-        element_id = item.get_attribute("id") or ""
-        name = item.get_attribute("name") or ""
-        text = ""
-        try:
-            text = item.inner_text().strip()
-        except Exception:
-            pass
-
-        # Skip empty anchors (anchors with no text and no href)
-        if not text and not href:
-            continue
-
-        elements.append({
-            "tag": "a",
-            "type": "link",
-            "name": name,
-            "element_id": element_id,
-            "input_type": "",
-            "placeholder": "",
-            "text": text,
-            "href": href,
-            "required": "false",
-            "visible": "true" if _is_visible(item) else "false",
-            "locator": _build_locator(element_id, name, "a"),
-        })
-
-    # ─── Selects (dropdowns) ─────────────────────────────────────────
-    selects = page.locator("select").all()
-
-    for item in selects:
-        element_id = item.get_attribute("id") or ""
-        name = item.get_attribute("name") or ""
-        required = item.get_attribute("required") is not None
-
-        elements.append({
-            "tag": "select",
-            "type": "dropdown",
-            "name": name,
-            "element_id": element_id,
-            "input_type": "",
-            "placeholder": "",
-            "text": "",
-            "href": "",
-            "required": "true" if required else "false",
-            "visible": "true" if _is_visible(item) else "false",
-            "locator": _build_locator(element_id, name, "select"),
-        })
-
-    # ─── Textareas ───────────────────────────────────────────────────
-    textareas = page.locator("textarea").all()
-
-    for item in textareas:
-        element_id = item.get_attribute("id") or ""
-        name = item.get_attribute("name") or ""
-        placeholder = item.get_attribute("placeholder") or ""
-        required = item.get_attribute("required") is not None
-
-        elements.append({
-            "tag": "textarea",
-            "type": "textarea",
-            "name": name,
-            "element_id": element_id,
-            "input_type": "",
-            "placeholder": placeholder,
-            "text": "",
-            "href": "",
-            "required": "true" if required else "false",
-            "visible": "true" if _is_visible(item) else "false",
-            "locator": _build_locator(element_id, name, "textarea"),
-        })
-
-    # ─── Forms ───────────────────────────────────────────────────────
-    forms = page.locator("form").all()
-
-    for item in forms:
-        element_id = item.get_attribute("id") or ""
-        name = item.get_attribute("name") or ""
-        action = item.get_attribute("action") or ""
-
-        elements.append({
-            "tag": "form",
-            "type": "form",
-            "name": name,
-            "element_id": element_id,
-            "input_type": "",
-            "placeholder": "",
-            "text": "",
-            "href": action,  # Store form action in href field
-            "required": "false",
-            "visible": "true" if _is_visible(item) else "false",
-            "locator": _build_locator(element_id, name, "form"),
-        })
-
-    # ─── Tables ──────────────────────────────────────────────────────
-    tables = page.locator("table").all()
-
-    for item in tables:
-        element_id = item.get_attribute("id") or ""
-
-        elements.append({
-            "tag": "table",
-            "type": "table",
-            "name": element_id,
-            "element_id": element_id,
-            "input_type": "",
-            "placeholder": "",
-            "text": "",
-            "href": "",
-            "required": "false",
-            "visible": "true" if _is_visible(item) else "false",
-            "locator": _build_locator(element_id, None, "table"),
-        })
+        const allElements = document.querySelectorAll(interactiveTags.join(','));
+        
+        allElements.forEach((el, index) => {
+            const style = window.getComputedStyle(el);
+            const visible = style.display !== 'none' && style.visibility !== 'hidden' && el.offsetWidth > 0 && el.offsetHeight > 0;
+            
+            const tag = el.tagName.toLowerCase();
+            const inputType = tag === 'input' ? el.getAttribute('type') || 'text' : '';
+            
+            let type = 'unknown';
+            if (tag === 'a') type = 'link';
+            else if (tag === 'button') type = 'button';
+            else if (tag === 'select') type = 'dropdown';
+            else if (tag === 'textarea') type = 'textarea';
+            else if (tag === 'form') type = 'form';
+            else if (tag === 'table') type = 'table';
+            else if (tag === 'input') {
+                if (inputType === 'checkbox') type = 'checkbox';
+                else if (inputType === 'radio') type = 'radio';
+                else if (['submit', 'reset', 'button'].includes(inputType)) type = 'button';
+                else type = 'input';
+            }
+            
+            elements.push({
+                tag: tag,
+                type: type,
+                name: el.getAttribute('name') || '',
+                element_id: el.id || '',
+                input_type: inputType,
+                placeholder: el.getAttribute('placeholder') || '',
+                text: el.innerText ? el.innerText.trim() : (el.value || ''),
+                href: el.getAttribute('href') || el.getAttribute('action') || '',
+                required: el.hasAttribute('required') ? 'true' : 'false',
+                visible: visible ? 'true' : 'false',
+                locator: el.id ? `#${el.id}` : (el.getAttribute('name') ? `${tag}[name='${el.getAttribute('name')}']` : tag),
+                xpath: getXPath(el),
+                css_selector: getCSSSelector(el),
+                label: findLabel(el),
+                parent_section: findParentSection(el),
+                nearby_text: getNearbyText(el),
+                element_index: index
+            });
+        });
+        
+        return elements;
+    }
+    """
+    return page.evaluate(js_code)
 
     return elements
 

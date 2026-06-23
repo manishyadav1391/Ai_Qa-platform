@@ -38,7 +38,8 @@ def _save_page_results(db: Session, project_id: int, crawl_run_id: int, results:
             crawl_date=datetime.datetime.now(datetime.timezone.utc),
             depth=page_data["depth"],
             project_id=project_id,
-            crawl_run_id=crawl_run_id
+            crawl_run_id=crawl_run_id,
+            html_content=page_data.get("html_content")
         )
         db.add(new_page)
         db.flush()
@@ -65,7 +66,13 @@ def _save_page_results(db: Session, project_id: int, crawl_run_id: int, results:
                 input_type=item.get("input_type", ""),
                 href=item.get("href", ""),
                 visible=item.get("visible", "true"),
-                required=item.get("required", "false")
+                required=item.get("required", "false"),
+                xpath=item.get("xpath"),
+                css_selector=item.get("css_selector"),
+                label=item.get("label"),
+                nearby_text=item.get("nearby_text"),
+                parent_section=item.get("parent_section"),
+                element_index=item.get("element_index")
             )
             db.add(element)
 
@@ -154,7 +161,8 @@ def crawl_project(
             crawl_date=datetime.datetime.now(datetime.timezone.utc),
             depth=0,
             project_id=project.id,
-            crawl_run_id=crawl_run.id
+            crawl_run_id=crawl_run.id,
+            html_content=result.get("html_content")
         )
 
         db.add(new_page)
@@ -173,7 +181,13 @@ def crawl_project(
                 input_type=item.get("input_type", ""),
                 href=item.get("href", ""),
                 visible=item.get("visible", "true"),
-                required=item.get("required", "false")
+                required=item.get("required", "false"),
+                xpath=item.get("xpath"),
+                css_selector=item.get("css_selector"),
+                label=item.get("label"),
+                nearby_text=item.get("nearby_text"),
+                parent_section=item.get("parent_section"),
+                element_index=item.get("element_index")
             )
             db.add(element)
 

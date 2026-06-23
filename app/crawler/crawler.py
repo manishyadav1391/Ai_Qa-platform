@@ -55,6 +55,7 @@ def scan_page(url: str, browser: Browser = None, storage_state: dict = None, tim
 
         title = page.title()
         current_url = page.url
+        html_content = page.content()
         elements = extract_elements(page)
         features = extract_features(page)
         links = extract_links(page)
@@ -66,6 +67,7 @@ def scan_page(url: str, browser: Browser = None, storage_state: dict = None, tim
         return {
             "title": title,
             "url": current_url,
+            "html_content": html_content,
             "status_code": response.status if response else None,
             "elements": elements,
             "features": features,

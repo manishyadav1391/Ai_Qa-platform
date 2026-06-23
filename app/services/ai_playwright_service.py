@@ -63,18 +63,19 @@ STRICT STRUCTURAL RULES:
 
 CRITICAL LOCATOR RULES — follow this EXACT priority order:
 
-1. If element has a non-empty "id" field, use:  page.locator("#<id>")
-2. If element has a non-empty "name" field, use:  page.locator("[name='<name>']")
-3. If element has a non-empty "placeholder" field, use:  page.get_by_placeholder("<placeholder>")
-4. For links (tag="a") with non-empty "text", use:  page.get_by_role("link", name="<text>")
-5. For buttons (tag="button") with non-empty "text", use:  page.get_by_role("button", name="<text>")
-6. NEVER invent selectors. ONLY use attributes that exist in the elements list below.
-7. If multiple links/buttons have the same text, use .first or .nth(index)
+1. If element has a non-empty "label" field, prefer using: page.get_by_label("<label>") or page.get_by_role("<role>", name="<label>")
+2. If element has a non-empty "id" field, use: page.locator("#<id>")
+3. If element has a non-empty "name" field, use: page.locator("[name='<name>']")
+4. If element has a non-empty "placeholder" field, use: page.get_by_placeholder("<placeholder>")
+5. For links (tag="a") with non-empty "text", use: page.get_by_role("link", name="<text>")
+6. For buttons (tag="button") with non-empty "text", use: page.get_by_role("button", name="<text>")
+7. If elements lack text or ID, or are duplicate, use their precise "css_selector" or "xpath" or "href" attribute from the elements metadata below (e.g. `page.locator("a[href*='linkedin.com']")` or the provided `css_selector`). NEVER invent generic/random selectors (like guessing class names or guessing element order).
+8. If elements are duplicate or generic, scope them using their enclosing "parent_section" or using `.nth(element_index)`.
 
 ELEMENT TYPE RULES:
 
-- tag="a" → LINK. Use get_by_role("link", ...) or locator("#id")
-- tag="button" → BUTTON. Use get_by_role("button", ...) or locator("#id")
+- tag="a" → LINK. Use get_by_role("link", ...) or locator with href or css_selector
+- tag="button" → BUTTON. Use get_by_role("button", ...) or locator with css_selector
 - tag="input" with input_type="email" → Use .fill() with a valid email
 - tag="input" with input_type="password" → Use .fill() with a password string
 - tag="input" with input_type="text" → Use .fill() with text
@@ -86,11 +87,20 @@ ELEMENT TYPE RULES:
 ASSERTION RULES:
 
 - For input fills: assert the .input_value() matches what you typed
-- For link clicks: use expect(page).to_have_url() or assert page.url contains the target
+- For external link clicks (like social media links or company homepages): since these links might redirect (e.g. twitter.com -> x.com, or http -> https), use substring assertions or regex patterns (e.g. `assert "linkedin.com" in new_page.url` or `expect(new_page).to_have_url(re.compile(r"facebook\.com"))` or `assert "orangehrm.com" in new_page.url`) rather than exact match assertions.
+- For internal link clicks: use expect(page).to_have_url() or assert page.url contains the target
 - For button clicks: assert .is_visible() and .is_enabled() before clicking
 - For form submissions: fill required fields first, then submit
 - For checkboxes: use .check() and assert .is_checked()
-- Use try/except with page.screenshot(path="test_name.png") on failure
+- To prevent TargetClosedErrors from masking the original failure, ALWAYS wrap page.screenshot inside a nested try/except block. E.g.:
+  ```python
+  except Exception as e:
+      try:
+          page.screenshot(path="test_name.png")
+      except Exception:
+          pass
+      raise e
+  ```
 
 Page Title:
 {page_title}
